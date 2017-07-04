@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 
@@ -7,6 +8,7 @@ namespace RWTest
     class Program
     {
         const string TT = "Test";
+        const int megabyte = 1048576;
 
         static string fname(int f)
         {
@@ -59,33 +61,42 @@ namespace RWTest
             {
                 try
                 {
+                    FileInfo fi = new FileInfo(fname(f));
+                    long fsz = fi.Length;
+                    long i = 0;
+                    
                     StreamReader sw = new StreamReader(fname(f));
-
-                    for (int i = 1; i <= 256; i++)
+                    Stopwatch stpw = new Stopwatch();
+                    stpw.Start();
+                    long j = fsz / 100;                    
+                    while (!sw.EndOfStream)
                     {
-                        for (int j = 1; j <= 1024; j++)
+                        sw.ReadBlock(Buff, 0, 4);
+                        
+                        j--;
+                        for (int z = 0; z < Buff.Length; z++)
                         {
-                            for (int k = 1; k <= 1024; k++)
+                            if (Buff[z] != TT[z])
                             {
-                                sw.ReadBlock(Buff, 0, 4);
-                                for (int z = 0; z < Buff.Length; z++)
-                                {
-                                    /*if (Buff[z] != TT[z])
-                                    {
-                                        errors++;
-                                    }*/
-                                    if (!Buff.SequenceEqual(TT))
-                                    {
-                                        errors++;
-                                    }
-
-                                }
+                                errors++;
                             }
                         }
 
-                        Console.Write("\rReading file {0}/{1} {2}% {3} errors          ", f, maxF, (i * 100 / 256), errors);
+
+                        if (j == 0)
+                        {
+                            i += TT.Length;
+                            Console.Write("\rReading file {0}/{1} {2}% {3} errors          ", f, maxF, i, errors);
+                            j = fsz / 100;
+                        }
+                    
                     }
+
                     sw.Close();
+                    stpw.Stop();
+                    Console.Write("  Mean read speed: {0}MB/s", ((fsz / megabyte) / (stpw.ElapsedMilliseconds / 1000))); 
+
+
                 }
                 catch (IOException e)
                 {
@@ -110,23 +121,22 @@ namespace RWTest
             int werrors = 0;
             int rerrors = 0;
 
-            if (args.Length > 0) 
-            { 
+            if (args.Length > 0)
+            {
                 string fpath = args[0];
-            }
 
-
-            try
-            {
-                Directory.SetCurrentDirectory(fpath);
-            }
-            catch (DirectoryNotFoundException e)
-            {
-                Console.WriteLine("Path {0} not found.", fpath);
-            }
-            catch (IOException e)
-            {
-                Console.WriteLine("Cannot open path {0}. IO Error {1}", fpath, e);
+                try
+                {
+                    Directory.SetCurrentDirectory(fpath);
+                }
+                catch (DirectoryNotFoundException e)
+                {
+                    Console.WriteLine("Path {0} not found.", fpath);
+                }
+                catch (IOException e)
+                {
+                    Console.WriteLine("Cannot open path {0}. IO Error {1}", fpath, e);
+                }
             }
 
             Console.WriteLine("Read/Write Test");
@@ -149,7 +159,7 @@ namespace RWTest
 
             // Write the test files
 
-            Console.Write("\n\r Skip writing files? [y/N]:", maxF);
+            Console.Write("\n\rSkip writing files? [y/N]:", maxF);
 
             if ("y" == Console.ReadKey().KeyChar.ToString().ToLower())
             {
@@ -162,18 +172,9 @@ namespace RWTest
             }
 
 
-            Console.Write("\n\r{0} files written. Do you want to read they? [y/N]:", maxF);
-
-            if ("y" == Console.ReadKey().KeyChar.ToString().ToLower())
-            {
-                Console.Write("\n\r");
-                rerrors = ReadFiles(maxF);
-                Console.Write("\n\r");
-            }
-            else
-            {
-                Console.Write("\n\r");
-            }
+                        
+            rerrors = ReadFiles(maxF);
+            Console.Write("\n\r");
 
 
             Console.WriteLine("Done. {0} write errors, {1} read errors.", werrors, rerrors);
