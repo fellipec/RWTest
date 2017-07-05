@@ -9,7 +9,7 @@ namespace RWTest
 
     class Program
     {
-        const string TT = "Test";
+        
         const int megabyte = 1048576;
         const long gigabyte = 1024 * megabyte;
 
@@ -18,6 +18,16 @@ namespace RWTest
             return ("RWTEST" + f.ToString("000") + ".TXT");
         }
 
+        static string LongString()
+        {
+            string T = "Test";
+            for (int i = 0; i < (10*megabyte/T.Length); i++)
+            {
+                T += T;
+            }
+
+            return T;
+        }
 
         static void PrintTimeRemaining (int maxF,int f, long fsz, long milsec)
         {
@@ -39,6 +49,7 @@ namespace RWTest
         
         static int WriteFiles(int maxF, long fsz = gigabyte)
         {
+            string TT = LongString();
             int errors = 0;
             for (int f = 1; f <= maxF; f++)
             {
@@ -81,7 +92,8 @@ namespace RWTest
 
         static int ReadFiles(int maxF)
         {
-            char[] Buff = new char[4];
+            string TT = LongString();
+            char[] Buff = new char[TT.Length];
             int errors = 0;
 
             for (int f = 1; f <= maxF; f++)
@@ -98,7 +110,7 @@ namespace RWTest
                     long j = fsz / 100 / TT.Length;                    
                     while (!sw.EndOfStream)
                     {
-                        sw.ReadBlock(Buff, 0, 4);
+                        sw.ReadBlock(Buff, 0, Buff.Length);
                         
                         j--;
                         for (int z = 0; z < Buff.Length; z++)
