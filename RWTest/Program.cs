@@ -1,14 +1,60 @@
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
+using CommandLine;
+using CommandLine.Text;
 
 namespace RWTest
 {
+
+
+    class Options
+    {
+        [Option('p', "path", Required = false,
+          HelpText = "Path to write/read files.")]
+        public string Path { get; set; }
+
+        [Option('s', "size", Required = false, DefaultValue = 1024,
+            HelpText = "Size of test files in megabytes. Default 1024")]
+        public int Size { get; set; }
+
+        [Option('f', "files", Required = false, DefaultValue = 1,
+            HelpText = "Number of files to read/write. Default 1")]
+        public int Files { get; set; }
+
+        [Option('r',"read", Required = false, DefaultValue = false,
+            HelpText = "Just read test files. You must create the test files before by running -w option")]
+        public bool ReadOnly { get; set; }
+
+        [Option('w', "write", Required = false, DefaultValue = false,
+            HelpText = "Only create teste files.")]
+        public bool WriteOnly { get; set; }
+
+
+
+        [ParserState]
+        public IParserState LastParserState { get; set; }
+
+        [HelpOption]
+        public string GetUsage()
+        {
+            return HelpText.AutoBuild(this,
+              (HelpText current) => HelpText.DefaultParsingErrorsHandler(this, current));
+        }
+    }
+
+
+
+
+
+
+
+
     class Program
     {
         const string TT = "Test";
         const int megabyte = 1048576;
+        const long gigabyte = 1024 * megabyte;
 
         static string fname(int f)
         {
@@ -16,7 +62,7 @@ namespace RWTest
         }
 
 
-        static int WriteFiles(int maxF)
+        static int WriteFiles(int maxF, long fsz = gigabyte)
         {
             int errors = 0;
             for (int f = 1; f <= maxF; f++)
@@ -24,20 +70,26 @@ namespace RWTest
                 try
                 {
                     StreamWriter sw = new StreamWriter(fname(f));
-
-                    for (int i = 1; i <= 256; i++)
+                    Stopwatch stpw = new Stopwatch();
+                    stpw.Start();
+                    long j = fsz / 100 / TT.Length;
+                    int k = 0;
+                    for (long i = 1; i <= fsz; i += TT.Length)
                     {
-                        for (int j = 1; j <= 1024; j++)
+                        sw.Write(TT);
+                        j--;
+                       
+                        if (j == 0)
                         {
-                            for (int k = 1; k <= 1024; k++)
-                            {
-                                sw.Write(TT);
-                            }
-                        }
-                        sw.Flush();
-                        Console.Write("\rFile {0}/{1} {2}%     ", f, maxF, (i * 100 / 256));
+                            sw.Flush();
+                            k++;
+                            Console.Write("\rWriting file {0}/{1} {2}%     ", f, maxF, k);
+                            j = fsz / 100 / TT.Length;
+                        }                                          
                     }
                     sw.Close();
+                    stpw.Stop();
+                    Console.Write("                Mean write speed: {0}MB/s", ((fsz / megabyte) / (stpw.ElapsedMilliseconds / 1000)));
 
                 }
                 catch (IOException e)
@@ -68,7 +120,7 @@ namespace RWTest
                     StreamReader sw = new StreamReader(fname(f));
                     Stopwatch stpw = new Stopwatch();
                     stpw.Start();
-                    long j = fsz / 100;                    
+                    long j = fsz / 100 / TT.Length;                    
                     while (!sw.EndOfStream)
                     {
                         sw.ReadBlock(Buff, 0, 4);
@@ -85,16 +137,16 @@ namespace RWTest
 
                         if (j == 0)
                         {
-                            i += TT.Length;
+                            i++;
                             Console.Write("\rReading file {0}/{1} {2}% {3} errors          ", f, maxF, i, errors);
-                            j = fsz / 100;
+                            j = fsz / 100 / TT.Length;
                         }
                     
                     }
 
                     sw.Close();
                     stpw.Stop();
-                    Console.Write("  Mean read speed: {0}MB/s", ((fsz / megabyte) / (stpw.ElapsedMilliseconds / 1000))); 
+                    Console.Write("  Mean read speed:  {0}MB/s", ((fsz / megabyte) / (stpw.ElapsedMilliseconds / 1000))); 
 
 
                 }
@@ -117,63 +169,69 @@ namespace RWTest
 
         static void Main(string[] args)
         {
-            int maxF = 0;
+            int maxF = 1;
+            long sizeF = gigabyte;
             int werrors = 0;
             int rerrors = 0;
+            bool ro = false;
+            bool wo = false;
 
-            if (args.Length > 0)
+
+            var options = new Options();
+            if (CommandLine.Parser.Default.ParseArguments(args, options))
             {
-                string fpath = args[0];
+                
+                if (options.Path != null)
+                {
+                    try
+                    {
+                        Directory.SetCurrentDirectory(options.Path);
+                    }
+                    catch (DirectoryNotFoundException e)
+                    {
+                        Console.WriteLine("Path {0} not found.", options.Path);
+                    }
+                    catch (IOException e)
+                    {
+                        Console.WriteLine("Cannot open path {0}. IO Error {1}", options.Path, e);
+                    }
+                }
 
-                try
-                {
-                    Directory.SetCurrentDirectory(fpath);
-                }
-                catch (DirectoryNotFoundException e)
-                {
-                    Console.WriteLine("Path {0} not found.", fpath);
-                }
-                catch (IOException e)
-                {
-                    Console.WriteLine("Cannot open path {0}. IO Error {1}", fpath, e);
-                }
+
+                maxF = options.Files;
+                sizeF = options.Size * megabyte;
+                ro = options.ReadOnly;
+                wo = options.WriteOnly;
             }
+
+
 
             Console.WriteLine("Read/Write Test");
 
 
-            while (maxF == 0)
-            {
-                try
-                {
-                    Console.Write("Number of files?:");
-                    maxF = Convert.ToInt16(Console.ReadLine());
-                }
-                catch (FormatException)
-                {
-                    maxF = 0;
-                    Console.WriteLine("Invalid number. ");
-                }
-            }
-
-
             // Write the test files
 
-            Console.Write("\n\rSkip writing files? [y/N]:", maxF);
-
-            if ("y" == Console.ReadKey().KeyChar.ToString().ToLower())
+            if (ro)
             {
-                Console.Write("\n\r");
+                Console.WriteLine("Read Only mode. Skipping file creation...");
+            }
+            else
+            {                
+                werrors = WriteFiles(maxF,sizeF);
+            }
+
+            Console.Write("\n\r");
+
+            if (wo)
+            {
+                Console.WriteLine("Skipping reading test files.");
             }
             else
             {
-                werrors = WriteFiles(maxF);
-                Console.Write("\n\r");
+                rerrors = ReadFiles(maxF);
             }
-
-
-                        
-            rerrors = ReadFiles(maxF);
+                                    
+            
             Console.Write("\n\r");
 
 
