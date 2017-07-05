@@ -1,55 +1,11 @@
-﻿using System;
+﻿using Microsoft.Extensions.CommandLineUtils;
+using System;
 using System.Diagnostics;
 using System.IO;
-using CommandLine;
-using CommandLine.Text;
+
 
 namespace RWTest
 {
-
-
-    class Options
-    {
-        [Option('p', "path", Required = false,
-          HelpText = "Path to write/read files.")]
-        public string Path { get; set; }
-
-        [Option('s', "size", Required = false, DefaultValue = 1024,
-            HelpText = "Size of test files in megabytes. Default 1024")]
-        public int Size { get; set; }
-
-        [Option('f', "files", Required = false, DefaultValue = 1,
-            HelpText = "Number of files to read/write. Default 1")]
-        public int Files { get; set; }
-
-        [Option('r',"read", Required = false, DefaultValue = false,
-            HelpText = "Just read test files. You must create the test files before by running -w option")]
-        public bool ReadOnly { get; set; }
-
-        [Option('w', "write", Required = false, DefaultValue = false,
-            HelpText = "Only create teste files.")]
-        public bool WriteOnly { get; set; }
-
-
-
-
-        [ParserState]
-        public IParserState LastParserState { get; set; }
-
-        [HelpOption]
-        public string GetUsage()
-        {
-            return HelpText.AutoBuild(this,
-              (HelpText current) => HelpText.DefaultParsingErrorsHandler(this, current));
-        }
-    }
-
-
-
-
-
-
-
 
     class Program
     {
@@ -80,10 +36,7 @@ namespace RWTest
             }
         }
 
-
-
-
-
+        
         static int WriteFiles(int maxF, long fsz = gigabyte)
         {
             int errors = 0;
@@ -185,10 +138,7 @@ namespace RWTest
 
         }
 
-
-
-
-
+        
         static void Main(string[] args)
         {
             int maxF = 1;
@@ -199,65 +149,126 @@ namespace RWTest
             bool wo = false;
 
 
-            var options = new Options();
-            if (CommandLine.Parser.Default.ParseArguments(args, options))
+            //Parse command line arguments
+
+            //rwtest.exe [-?|-h|--help] [-p|path] <path>
+
+            var app = new CommandLineApplication();
+            app.Name = "RWTest";
+            app.Description = "Read/Write test";
+            app.FullName = "Read/Write test";
+            var pathOption = app.Option("-p|--path <path>", "Path to read/write test files.",CommandOptionType.SingleValue);
+            var filesOption = app.Option("-f|--files <files>","Number of files to read/write. Default 1.", CommandOptionType.SingleValue);
+            var sizeOption = app.Option("-s|--size <size>", "Size of test file (MB). Default 1024.", CommandOptionType.SingleValue);
+            var roOption = app.Option("-r|--read","Only read test files. Remember to create files with -w",CommandOptionType.NoValue);
+            var woOption = app.Option("-w|--write", "Only write test files.", CommandOptionType.NoValue);
+
+
+
+            app.HelpOption("-?|-h|--help");
+
+            
+            // Main function
+            app.OnExecute(() =>
             {
-                
-                if (options.Path != null)
+
+                //Initialize
+                Stopwatch runningtime = new Stopwatch();
+                runningtime.Start();
+                Console.WriteLine("Read/Write Test");
+
+
+                // Set path
+                if (pathOption.HasValue())
                 {
                     try
                     {
-                        Directory.SetCurrentDirectory(options.Path);
+                        Directory.SetCurrentDirectory(pathOption.Value());
                     }
                     catch (DirectoryNotFoundException e)
                     {
-                        Console.WriteLine("Path {0} not found.", options.Path);
+                        Console.WriteLine("Path {0} not found.", pathOption.Value());
                     }
                     catch (IOException e)
                     {
-                        Console.WriteLine("Cannot open path {0}. IO Error {1}", options.Path, e);
+                        Console.WriteLine("Cannot open path {0}. IO Error {1}", pathOption.Value(), e);
+                    }
+
+                }
+
+                //Set number of files
+                if (filesOption.HasValue())
+                {
+                    try
+                    {
+                        maxF = Convert.ToInt32(filesOption.Value());
+                    }
+                    catch (FormatException)
+                    {
+                        Console.WriteLine("Invalid argument {0}", filesOption.Value());
+                        return (1);
                     }
                 }
 
 
-                maxF = options.Files;
-                sizeF = options.Size * megabyte;
-                ro = options.ReadOnly;
-                wo = options.WriteOnly;
-            }
+                //Set file size
+                if (sizeOption.HasValue())
+                {
+                    try
+                    {
+                        sizeF = Convert.ToInt32(sizeOption.Value()) * megabyte;
+                    }
+                    catch (FormatException)
+                    {
+                        Console.WriteLine("Invalid argument {0}", sizeOption.Value());
+                        return (1);
+                    }
+                }
 
 
+                //Set options for read or write only
+                ro = roOption.HasValue();
+                wo = woOption.HasValue();
+                
 
-            Console.WriteLine("Read/Write Test");
+
+                // Write test files
+                if (ro)
+                {
+                    Console.WriteLine("Read Only mode. Skipping file creation...");
+                }
+                else
+                {
+                    werrors = WriteFiles(maxF, sizeF);
+                }
+
+                Console.Write("\n\r");
+
+                // Read test files
+                if (wo)
+                {
+                    Console.WriteLine("Skipping reading test files.");
+                }
+                else
+                {
+                    rerrors = ReadFiles(maxF);
+                }
 
 
-            // Write the test files
+                //Say goodbye ;)
+                runningtime.Stop();
+                TimeSpan totaltime = new TimeSpan(runningtime.ElapsedTicks);
+                Console.Write("\n\r");
+                Console.WriteLine("Done. {0} write errors, {1} read errors. Total time elapsed: {2}", werrors, rerrors, totaltime.ToString("g"));
 
-            if (ro)
-            {
-                Console.WriteLine("Read Only mode. Skipping file creation...");
-            }
-            else
-            {                
-                werrors = WriteFiles(maxF,sizeF);
-            }
+                return(0);
 
-            Console.Write("\n\r");
+            });
 
-            if (wo)
-            {
-                Console.WriteLine("Skipping reading test files.");
-            }
-            else
-            {
-                rerrors = ReadFiles(maxF);
-            }
-                                    
+
             
-            Console.Write("\n\r");
-
-
-            Console.WriteLine("Done. {0} write errors, {1} read errors.", werrors, rerrors);
+            app.Execute(args);
+            
             
         }
     }
