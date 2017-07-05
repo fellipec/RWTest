@@ -202,6 +202,7 @@ namespace RWTest
                     try
                     {
                         maxF = Convert.ToInt32(filesOption.Value());
+                        if (maxF > 999) maxF = 999;
                     }
                     catch (FormatException)
                     {
