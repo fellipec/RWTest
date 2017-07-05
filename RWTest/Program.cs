@@ -62,6 +62,27 @@ namespace RWTest
         }
 
 
+        static void PrintTimeRemaining (int maxF,int f, long fsz, long milsec)
+        {
+
+            double speed = ((fsz / megabyte) / (milsec / 1000));
+            Console.Write("                Average speed: {0}MB/s", speed);
+
+            if ((maxF - f) > 1)
+            {
+                TimeSpan timeremaing = new TimeSpan(0, 0, Convert.ToInt32(((fsz * (maxF - f)) / megabyte) / speed));
+                Console.Write(" Time remaning: {0}", timeremaing.ToString("g"));
+            }
+            else
+            {
+                Console.Write("                                                ");
+            }
+        }
+
+
+
+
+
         static int WriteFiles(int maxF, long fsz = gigabyte)
         {
             int errors = 0;
@@ -83,13 +104,13 @@ namespace RWTest
                         {
                             sw.Flush();
                             k++;
-                            Console.Write("\rWriting file {0}/{1} {2}%     ", f, maxF, k);
+                            Console.Write("\rWriting file {0}/{1} {2}%            ", f, maxF, k);
                             j = fsz / 100 / TT.Length;
                         }                                          
                     }
                     sw.Close();
                     stpw.Stop();
-                    Console.Write("                Mean write speed: {0}MB/s", ((fsz / megabyte) / (stpw.ElapsedMilliseconds / 1000)));
+                    PrintTimeRemaining(maxF, f, fsz, stpw.ElapsedMilliseconds);
 
                 }
                 catch (IOException e)
@@ -138,7 +159,7 @@ namespace RWTest
                         if (j == 0)
                         {
                             i++;
-                            Console.Write("\rReading file {0}/{1} {2}% {3} errors          ", f, maxF, i, errors);
+                            Console.Write("\rReading file {0}/{1} {2}% {3} errors   ", f, maxF, i, errors);
                             j = fsz / 100 / TT.Length;
                         }
                     
@@ -146,7 +167,7 @@ namespace RWTest
 
                     sw.Close();
                     stpw.Stop();
-                    Console.Write("  Mean read speed:  {0}MB/s", ((fsz / megabyte) / (stpw.ElapsedMilliseconds / 1000))); 
+                    PrintTimeRemaining(maxF, f, fsz, stpw.ElapsedMilliseconds);
 
 
                 }
@@ -236,9 +257,7 @@ namespace RWTest
 
 
             Console.WriteLine("Done. {0} write errors, {1} read errors.", werrors, rerrors);
-
-            Console.Read();
-
+            
         }
     }
 }
